@@ -1,9 +1,14 @@
 ﻿using System;
+using System.Collections;
+using System.Collections.Generic;
 using System.Net;
 using System.Net.Http;
+using System.Threading;
 using System.Threading.Tasks;
 using Amazon.S3;
+using Amazon.S3.Model;
 using Amazon.Translate;
+using Amazon.Translate.Model;
 using AutoFixture;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -19,7 +24,7 @@ namespace Tests.Explicit.Handlers
     [TestFixture]
     public class SingleTranslateCommandHandlerTests
     {
-        const string HtmlFormat = @"<html><body><div class=""lcb-body""><p>{0}</p></div></body></html>";
+        private string HtmlFormat = @"<html><body><div class=""lcb-body""><p>{0}</p></div></body></html>";
 
         private IFixture _fixture;
 
@@ -42,31 +47,36 @@ namespace Tests.Explicit.Handlers
         [Test]
         public void HttpClient_is_required()
         {
-            Assert.Throws<ArgumentNullException>(() => new SingleTranslateCommandHandler(null, Mock.Of<IAmazonTranslate>(), Mock.Of<IAmazonS3>(), Mock.Of<IOptions<TranslateOptions>>(), Mock.Of<ILogger<SingleTranslateCommandHandler>>()));
+            Assert.Throws<ArgumentNullException>(() => new SingleTranslateCommandHandler(null, Mock.Of<IAmazonTranslate>(), 
+                Mock.Of<IAmazonS3>(), Mock.Of<IOptions<TranslateOptions>>(), Mock.Of<ILogger<SingleTranslateCommandHandler>>()));
         }
 
-        [Test, Ignore("This test is not finished yet")]
+        [Test]
         public void AmazonTranslate_is_required()
         {
-
+            Assert.Throws<ArgumentNullException>(() => new SingleTranslateCommandHandler(new HttpClient(), null,
+                Mock.Of<IAmazonS3>(), Mock.Of<IOptions<TranslateOptions>>(), Mock.Of<ILogger<SingleTranslateCommandHandler>>()));
         }
 
-        [Test, Ignore("This test is not finished yet")]
+        [Test]
         public void AmazonS3_is_required()
         {
-
+            Assert.Throws<ArgumentNullException>(() => new SingleTranslateCommandHandler(new HttpClient(), Mock.Of<IAmazonTranslate>(),
+                null, Mock.Of<IOptions<TranslateOptions>>(), Mock.Of<ILogger<SingleTranslateCommandHandler>>())) ;
         }
 
-        [Test, Ignore("This test is not finished yet")]
+        [Test]
         public void TranslateOptions_is_required()
         {
-
+            Assert.Throws<ArgumentNullException>(() => new SingleTranslateCommandHandler(new HttpClient(), Mock.Of<IAmazonTranslate>(),
+               Mock.Of<IAmazonS3>(), null, Mock.Of<ILogger<SingleTranslateCommandHandler>>()));
         }
 
-        [Test, Ignore("This test is not finished yet")]
+        [Test]
         public void Logger_is_required()
         {
-
+            Assert.Throws<ArgumentNullException>(() => new SingleTranslateCommandHandler(new HttpClient(), Mock.Of<IAmazonTranslate>(),
+              Mock.Of<IAmazonS3>(), Mock.Of<IOptions<TranslateOptions>>(), null));
         }
 
         private SingleTranslateCommandHandler CreateSystemUnderTest(TranslateOptions options, params HttpMessageOptions[] httpOptions)
@@ -97,13 +107,12 @@ namespace Tests.Explicit.Handlers
             Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => sut.HandleAsync(_mockDispatcher.Object, context));
         }
 
-
-        [Test, Ignore("This test is not finished yet")]
+        [Test]
         public async Task HandleAsync_downloads_the_proper_Education_profile()
         {
             // ARRANGE
-
-            var text = _fixture.Create<string>();
+            
+            var text = string.Format(this.HtmlFormat, _fixture.Create<string>());
 
             var httpOption = new HttpMessageOptions
             {
@@ -114,6 +123,12 @@ namespace Tests.Explicit.Handlers
             };
 
             var options = _fixture.Create<TranslateOptions>();
+
+            _mockTranslate.Setup(e => e.TranslateTextAsync(It.IsAny<TranslateTextRequest>(), CancellationToken.None))
+                .ReturnsAsync(_fixture.Create<TranslateTextResponse>());
+            //.ReturnsAsync<TranslateTextResponse>(_fixture.Create<TranslateTextResponse>());
+
+            _mockS3.Setup(s => s.PutObjectAsync(It.IsAny<PutObjectRequest>(), CancellationToken.None));
 
             var sut = CreateSystemUnderTest(options, httpOption);
 
@@ -127,25 +142,108 @@ namespace Tests.Explicit.Handlers
 
             // ASSERT
 
-            Assert.That(httpOption.HttpResponseMessage.RequestMessage.RequestUri.ToString(), Is.EqualTo(string.Format(SingleTranslateCommandHandler.EducationProfileFormat, context.Command.EducationId)));
+            Assert.That(httpOption.HttpResponseMessage.RequestMessage.RequestUri.ToString(), 
+                Is.EqualTo(string.Format(SingleTranslateCommandHandler.EducationProfileFormat, context.Command.EducationId)));
         }
 
-        [Test, Ignore("This test is not finished yet")]
+        [Test]
         public async Task HandleAsync_uses_Amazon_Translate_to_translate_text()
         {
+            // ARRANGE
+            var text = string.Format(this.HtmlFormat, _fixture.Create<string>());
+
+            var httpOption = new HttpMessageOptions
+            {
+                HttpResponseMessage = new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent(text)
+                }
+            };
+
+            var options = _fixture.Create<TranslateOptions>();
+            var translation = _fixture.Create<TranslateTextResponse>();
+
+            _mockTranslate.Setup(e => e.TranslateTextAsync(It.IsAny<TranslateTextRequest>(), CancellationToken.None))
+                .ReturnsAsync(translation);
+
+            _mockS3.Setup(s => s.PutObjectAsync(It.IsAny<PutObjectRequest>(), CancellationToken.None));
+
+            var sut = CreateSystemUnderTest(options, httpOption);
+
+            var context = _fixture.Create<NybusCommandContext<TranslateEducationCommand>>();
+
+            // ACT
+            await sut.HandleAsync(_mockDispatcher.Object, context);
+
+            // ASSERT
+            _mockTranslate.Verify(e => e.TranslateTextAsync(It.IsAny<TranslateTextRequest>(), CancellationToken.None));
 
         }
 
-        [Test, Ignore("This test is not finished yet")]
+        [Test]
         public async Task HandleAsync_uses_Amazon_S3_to_store_translations()
         {
+            // ARRANGE
+            var text = string.Format(this.HtmlFormat, _fixture.Create<string>());
 
+            var httpOption = new HttpMessageOptions
+            {
+                HttpResponseMessage = new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent(text)
+                }
+            };
+
+            var options = _fixture.Create<TranslateOptions>();
+            var translation = _fixture.Create<TranslateTextResponse>();
+
+            _mockTranslate.Setup(e => e.TranslateTextAsync(It.IsAny<TranslateTextRequest>(), CancellationToken.None))
+                .ReturnsAsync(translation);
+
+            _mockS3.Setup(s => s.PutObjectAsync(It.IsAny<PutObjectRequest>(), CancellationToken.None));
+
+            var sut = CreateSystemUnderTest(options, httpOption);
+
+            var context = _fixture.Create<NybusCommandContext<TranslateEducationCommand>>();
+
+            // ACT
+            await sut.HandleAsync(_mockDispatcher.Object, context);
+
+            // ASSERT
+            _mockS3.Verify(e => e.PutObjectAsync(It.IsAny<PutObjectRequest>(), CancellationToken.None));
         }
 
-        [Test, Ignore("This test is not finished yet")]
+        [Test]
         public async Task HandleAsync_raises_event_when_completed()
         {
+            // ARRANGE
+            var text = string.Format(this.HtmlFormat, _fixture.Create<string>());
 
+            var httpOption = new HttpMessageOptions
+            {
+                HttpResponseMessage = new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent(text)
+                }
+            };
+
+            var options = _fixture.Create<TranslateOptions>();
+            var translation = _fixture.Create<TranslateTextResponse>();
+
+            _mockTranslate.Setup(e => e.TranslateTextAsync(It.IsAny<TranslateTextRequest>(), CancellationToken.None))
+                .ReturnsAsync(translation);
+
+            _mockS3.Setup(s => s.PutObjectAsync(It.IsAny<PutObjectRequest>(), CancellationToken.None));
+
+            var sut = CreateSystemUnderTest(options, httpOption);
+
+            var context = _fixture.Create<NybusCommandContext<TranslateEducationCommand>>();
+
+            // ACT
+            await sut.HandleAsync(_mockDispatcher.Object, context);
+
+            // ASSERT
+            _mockDispatcher.Verify(e => e.RaiseEventAsync(It.IsAny<EducationTranslatedEvent>(), It.IsAny<IDictionary<string,string>>()));
         }
     }
 }

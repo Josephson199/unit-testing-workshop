@@ -12,43 +12,52 @@ namespace MessageSender
     {
         static async Task Main(string[] args)
         {
-            var services = new ServiceCollection();
-
-            services.AddLogging(logging => { logging.AddConsole(); });
-
-            services.AddNybus(nybus =>
+            try
             {
-                nybus.UseRabbitMqBusEngine(rabbitMq =>
+                var services = new ServiceCollection();
+
+                services.AddLogging(logging => { logging.AddConsole(); });
+
+                services.AddNybus(nybus =>
                 {
-                    rabbitMq.Configure(configuration =>
+                    nybus.UseRabbitMqBusEngine(rabbitMq =>
                     {
-                        configuration.ConnectionFactory = new ConnectionFactory
+                        rabbitMq.Configure(configuration =>
                         {
-                            HostName = "localhost",
-                            UserName = "guest",
-                            Password = "guest"
-                        };
+                            configuration.ConnectionFactory = new ConnectionFactory
+                            {
+                                HostName = "localhost",
+                                UserName = "guest",
+                                Password = "guest"
+                            };
+                        });
                     });
                 });
-            });
 
-            var serviceProvider = services.BuildServiceProvider();
+                var serviceProvider = services.BuildServiceProvider();
 
-            var host = serviceProvider.GetRequiredService<IBusHost>();
+                var host = serviceProvider.GetRequiredService<IBusHost>();
 
-            await host.StartAsync();
+                await host.StartAsync();
 
-            int educationId = int.Parse(args[0]);
+                //int educationId = int.Parse(args[0]);
 
-            Console.WriteLine($"Queueing translation to English for education: {educationId}");
+                //Console.WriteLine($"Queueing translation to English for education: {educationId}");
 
-            await host.Bus.InvokeCommandAsync(new TranslateCommand
+                await host.Bus.InvokeCommandAsync(new TranslateCommand
+                {
+                    ToLanguage = Language.English,
+                    EducationId = 880997
+                });
+
+                await host.StopAsync();
+            }
+            catch (Exception e)
             {
-                ToLanguage = Language.English,
-                EducationId = educationId
-            });
 
-            await host.StopAsync();
+                throw;
+            }
+           
         }
     }
 

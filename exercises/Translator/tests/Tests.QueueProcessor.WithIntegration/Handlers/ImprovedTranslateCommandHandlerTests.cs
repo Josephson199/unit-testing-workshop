@@ -20,7 +20,8 @@ namespace Tests.Implicit.Handlers
         }
 
         [Test, MyAutoData]
-        public async Task HandleAsync_uses_downloader_to_download_file([Frozen] IEducationProfileDownloader downloader, ImprovedTranslateCommandHandler sut, IDispatcher dispatcher, ICommandContext<TranslateEducationCommand> context)
+        public async Task HandleAsync_uses_downloader_to_download_file([Frozen] IEducationProfileDownloader downloader, 
+            ImprovedTranslateCommandHandler sut, IDispatcher dispatcher, ICommandContext<TranslateEducationCommand> context)
         {
             await sut.HandleAsync(dispatcher, context);
 
@@ -28,7 +29,10 @@ namespace Tests.Implicit.Handlers
         }
 
         [Test, MyAutoData]
-        public async Task HandleAsync_uses_extractor_to_extract_paragraphs([Frozen] IEducationProfileDownloader downloader, [Frozen] ITextExtractor extractor, ImprovedTranslateCommandHandler sut, IDispatcher dispatcher, ICommandContext<TranslateEducationCommand> context, string content)
+        public async Task HandleAsync_uses_extractor_to_extract_paragraphs([Frozen] IEducationProfileDownloader downloader, 
+            [Frozen] ITextExtractor extractor, ImprovedTranslateCommandHandler sut, IDispatcher dispatcher, 
+            ICommandContext<TranslateEducationCommand> context, 
+            string content)
         {
             Mock.Get(downloader).Setup(p => p.GetProfile(It.IsAny<int>())).ReturnsAsync(content);
 
@@ -38,7 +42,8 @@ namespace Tests.Implicit.Handlers
         }
 
         [Test, MyAutoData]
-        public async Task HandleAsync_uses_translator_to_translate_text([Frozen] ITextExtractor extractor, [Frozen] ITranslator translator, ImprovedTranslateCommandHandler sut, IDispatcher dispatcher, ICommandContext<TranslateEducationCommand> context, string[] paragraphs)
+        public async Task HandleAsync_uses_translator_to_translate_text([Frozen] ITextExtractor extractor, 
+            [Frozen] ITranslator translator, ImprovedTranslateCommandHandler sut, IDispatcher dispatcher, ICommandContext<TranslateEducationCommand> context, string[] paragraphs)
         {
             Mock.Get(extractor).Setup(p => p.ExtractText(It.IsAny<string>())).Returns(paragraphs);
 
@@ -51,7 +56,8 @@ namespace Tests.Implicit.Handlers
         }
 
         [Test, MyAutoData]
-        public async Task HandleAsync_uses_persister_to_store_text([Frozen] ITranslationPersister persister, ImprovedTranslateCommandHandler sut, IDispatcher dispatcher, ICommandContext<TranslateEducationCommand> context)
+        public async Task HandleAsync_uses_persister_to_store_text([Frozen] ITranslationPersister persister, ImprovedTranslateCommandHandler sut, 
+            IDispatcher dispatcher, ICommandContext<TranslateEducationCommand> context)
         {
             await sut.HandleAsync(dispatcher, context);
 
@@ -59,11 +65,13 @@ namespace Tests.Implicit.Handlers
         }
 
         [Test, MyAutoData]
-        public async Task HandleAsync_raises_event_when_completed(SingleTranslateCommandHandler sut, IDispatcher dispatcher, ICommandContext<TranslateEducationCommand> context)
+        public async Task HandleAsync_raises_event_when_completed(SingleTranslateCommandHandler sut, IDispatcher dispatcher,
+            ICommandContext<TranslateEducationCommand> context)
         {
             await sut.HandleAsync(dispatcher, context);
 
-            Mock.Get(dispatcher).Verify(p => p.RaiseEventAsync(It.Is<EducationTranslatedEvent>(te => te.EducationId == context.Command.EducationId && te.ToLanguage == context.Command.ToLanguage), It.IsAny<IDictionary<string, string>>()));
+            Mock.Get(dispatcher).Verify(p => p.RaiseEventAsync(It.Is<EducationTranslatedEvent>
+                (te => te.EducationId == context.Command.EducationId && te.ToLanguage == context.Command.ToLanguage), It.IsAny<IDictionary<string, string>>()));
         }
     }
 }
